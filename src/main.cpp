@@ -27,26 +27,24 @@ std::vector<unsigned char> bluePixels = generateSolidColorPixels(64, 64, 0, 0, 2
 // Encode an array of pixels into a png image.
 void encodeOneStep(const char* filename, std::vector<unsigned char>& image, unsigned width, unsigned height) {
 	//Encode the image
-	unsigned error = lodepng::encode(filename, image, width, height);
-
-	//if there's an error, display it
-	if (error) std::cout << "encoder error " << error << ": " << lodepng_error_text(error) << std::endl;
+	//unsigned error = lodepng::encode(filename, image, width, height);
+	//
+	////if there's an error, display it
+	//if (error) std::cout << "encoder error " << error << ": " << lodepng_error_text(error) << std::endl;
 }
 
 int main() {
 	auto start = std::chrono::steady_clock::now();
-	auto end = std::chrono::steady_clock::now();
-	std::cout << "Elapsed time in milliseconds: "
-		<< std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-		<< " ms" << std::endl;
+
 
 	AudioFile<double> audioFile;
-	audioFile.load("../res/left-right.wav");
-
+	AudioFile<double> audioFile2;
+	//audioFile.load("../res/left-right.wav", false);
+	audioFile.load("../res/long-data.wav", true);
 	int sampleRate = audioFile.getSampleRate();
 	int bitDepth = audioFile.getBitDepth();
 
-	int numSamples = audioFile.getNumSamplesPerChannel();
+	int numSamples = audioFile.demandSamples.numSamples;
 	double lengthInSeconds = audioFile.getLengthInSeconds();
 
 	int numChannels = audioFile.getNumChannels();
@@ -61,13 +59,15 @@ int main() {
 	double averageDBRight = 0;
 	for (int i = 0; i < numSamples; i++)
 	{
-		double currentSampleLeft = audioFile.samples[0][i];
-		double currentSampleRight = audioFile.samples[1][i];
+		//double currentSampleLeft = audioFile.samples[0][i];
+		//double currentSampleRight = audioFile.samples[1][i];
+		double currentSampleLeft = audioFile.demandSamples.getBufferAt(0, i);
+		double currentSampleRight = audioFile.demandSamples.getBufferAt(1, i);
 		averageDBLeft += currentSampleLeft * currentSampleLeft;
 		averageDBRight += currentSampleRight * currentSampleRight;
 		if (hzElapsed++ == sampleRate) {
-			double calcLeft = (averageDBLeft / sampleRate) * 100;
-			double calcRight = (averageDBRight / sampleRate) * 100;
+			double calcLeft = (averageDBLeft / sampleRate) * 1000;
+			double calcRight = (averageDBRight / sampleRate) * 1000;
 			std::string result;
 			//result += " Average DbS: ";
 			//result += std::to_string(calc);
@@ -83,7 +83,7 @@ int main() {
 				result += " RIGHT";
 				isRightSpeaking = true;
 			}
-			std::cout << result << std::endl;
+			//std::cout << result << std::endl;
 			//std::cout << averageHz / sampleRate << std::endl;
 			averageDBLeft = 0;
 			averageDBRight = 0;
@@ -95,10 +95,15 @@ int main() {
 				encodeOneStep(filename.c_str(), redPixels, 64, 64);
 			else if(isRightSpeaking)
 				encodeOneStep(filename.c_str(), greenPixels, 64, 64);
+			else
+				encodeOneStep(filename.c_str(), bluePixels, 64, 64);
 		}
 	}
 	std::cout << "DONE!!!!" << std::endl;
-
+	auto end = std::chrono::steady_clock::now();
+	std::cout << "Elapsed time in milliseconds: "
+		<< std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+		<< " ms" << std::endl;
 	// or, just use this quick shortcut to print a summary to the console
 	audioFile.printSummary();
 
