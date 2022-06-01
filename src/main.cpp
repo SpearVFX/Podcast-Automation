@@ -4,6 +4,13 @@
 #include <iostream>
 #include <chrono>
 
+// Macro defining left focus
+#define LEFT 0
+// Macro defining right focus
+#define RIGHT 1
+// Macro defining central focus
+#define CENTRAL 2
+
 std::vector<unsigned char> generateSolidColorPixels(unsigned width, unsigned height, unsigned r = 0, unsigned g = 0, unsigned b = 0, unsigned a = 255) {
 	std::vector<unsigned char> image;
 	image.resize(width * height * 4);
@@ -34,7 +41,7 @@ void encodeOneStep(const char* filename, std::vector<unsigned char>& image, unsi
 }
 
 bool isSpeaking(double averageDB) {
-	return averageDB >= 1.0f;
+	return averageDB >= 2.0f;
 }
 
 int main() {
@@ -64,19 +71,19 @@ int main() {
 	//int secondsElapsed = 0;
 	double averageDBLeft = 0;
 	double averageDBRight = 0;
-	std::vector<double> averagedDBLeft;
-	std::vector<double> averagedDBRight;
+	std::vector<std::vector<double>> averagedDB;
+	averagedDB.resize(2);
 	for (int i = 0; i < numSamples; i++)
 	{
-		double currentSampleLeft = audioFile.demandSamples.getBufferAt(0, i);
-		double currentSampleRight = audioFile.demandSamples.getBufferAt(1, i);
+		double currentSampleLeft = audioFile.demandSamples.getBufferAt(LEFT, i);
+		double currentSampleRight = audioFile.demandSamples.getBufferAt(RIGHT, i);
 		averageDBLeft += currentSampleLeft * currentSampleLeft;
 		averageDBRight += currentSampleRight * currentSampleRight;
 		if (hzElapsed++ == sampleRate) {
 			double calcLeft = (averageDBLeft / sampleRate) * 1000;
 			double calcRight = (averageDBRight / sampleRate) * 1000;
-			averagedDBLeft.push_back(calcLeft);
-			averagedDBRight.push_back(calcRight);
+			averagedDB[LEFT].push_back(calcLeft);
+			averagedDB[RIGHT].push_back(calcRight);
 			std::string result;
 			//result += " Average DbS: ";
 			//result += std::to_string(calc);
@@ -91,54 +98,79 @@ int main() {
 	}
 	secondsElapsed = 0;
 	// 0 - left, 1 - right, 2 - central
-	int cameraFocus = 2;
-	for (size_t i = 2; i < averagedDBLeft.size(); i++)
+	int cameraFocus = CENTRAL;
+
+	int skipFrames = 0;
+
+	for (size_t i = 3; i < averagedDB[0].size(); i++)
 	{
-		bool isRightSpeaking = isSpeaking(averagedDBLeft[i]);
-		bool isLeftSpeaking = isSpeaking(averagedDBRight[i]);
-
-		bool isRightSpeakingNext3Sec = isSpeaking(averagedDBLeft[i - 1]) && isSpeaking(averagedDBLeft[i - 2]);
-		bool isLeftSpeakingNext3Sec = isSpeaking(averagedDBRight[i - 1]) && isSpeaking(averagedDBRight[i - 2]);
-
-
 		std::string filename = "test_" + std::to_string(secondsElapsed++) + ".png";
 		std::cout << filename << std::endl;
 		switch (cameraFocus) {
-		case(0): encodeOneStep(filename.c_str(), redPixels, 64, 64); break;
-		case(1): encodeOneStep(filename.c_str(), greenPixels, 64, 64); break;
-		case(2): encodeOneStep(filename.c_str(), bluePixels, 64, 64); break;
+		case(LEFT): encodeOneStep(filename.c_str(), redPixels, 64, 64); break;
+		case(RIGHT): encodeOneStep(filename.c_str(), greenPixels, 64, 64); break;
+		case(CENTRAL): encodeOneStep(filename.c_str(), bluePixels, 64, 64); break;
 		}
+		if (skipFrames > 0) {
+			skipFrames--;
+			continue;
+		}
+		double lDb = averagedDB[LEFT][i];
+		double rDb = averagedDB[RIGHT][i];
+		bool isLeftSpeaking = isSpeaking(averagedDB[LEFT][i]);
+		bool isRightSpeaking = isSpeaking(averagedDB[RIGHT][i]);
+
+		bool isLeftSpeakingNext3Sec = isSpeaking((averagedDB[LEFT][i - 1] + averagedDB[LEFT][i - 2] + averagedDB[LEFT][i - 3])/3.0f);
+		bool isRightSpeakingNext3Sec = isSpeaking((averagedDB[RIGHT][i - 1] + averagedDB[RIGHT][i - 2] + averagedDB[RIGHT][i - 3])/3.0f);
+
+
+
 
 		if ((isLeftSpeakingNext3Sec && isRightSpeakingNext3Sec) || (!isLeftSpeakingNext3Sec && !isRightSpeakingNext3Sec)) {
-			cameraFocus = 2;
+			cameraFocus = CENTRAL;
 			continue;
 		}
 
-		if (cameraFocus == 2) {
-			if (isLeftSpeakingNext3Sec)
-				cameraFocus = 0;
-			else if (isRightSpeaking)
-				cameraFocus = 1;
+		if (cameraFocus == CENTRAL) {
+			if (isLeftSpeakingNext3Sec) {
+				cameraFocus = LEFT;
+				skipFrames += 4;
+			}
+			else if (isRightSpeakingNext3Sec) {
+				cameraFocus = RIGHT;
+				skipFrames += 4;
+			}
+			else {
+				skipFrames += 1;
+			}
 			continue;
 		}
 
-		if (cameraFocus == 0) {
-			if (isRightSpeakingNext3Sec && !isLeftSpeakingNext3Sec)
-				cameraFocus = 1;
+		if (cameraFocus == LEFT) {
+			if (isRightSpeakingNext3Sec && !isLeftSpeakingNext3Sec) {
+				cameraFocus = RIGHT;
+				skipFrames += 4;
+			}
 			else if (isLeftSpeaking)
-				cameraFocus = 0;
-			else
-				cameraFocus = 2;
+				cameraFocus = LEFT;
+			else {
+				cameraFocus = CENTRAL;
+				skipFrames += 2;
+			}
 			continue;
 		}
 
-		if (cameraFocus == 1) {
-			if (isLeftSpeakingNext3Sec && !isRightSpeakingNext3Sec)
-				cameraFocus = 0;
+		if (cameraFocus == RIGHT) {
+			if (isLeftSpeakingNext3Sec && !isRightSpeakingNext3Sec) {
+				cameraFocus = LEFT;
+				skipFrames += 4;
+			}
 			else if (isRightSpeaking)
-				cameraFocus = 1;
-			else
-				cameraFocus = 2;
+				cameraFocus = RIGHT;
+			else {
+				cameraFocus = CENTRAL;
+				skipFrames += 2;
+			}
 			continue;
 		}
 
