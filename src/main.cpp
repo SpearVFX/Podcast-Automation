@@ -3,6 +3,7 @@
 #include <string>
 #include <iostream>
 #include <chrono>
+#include <windows.h>
 
 // Macro defining left focus
 #define LEFT 0
@@ -44,7 +45,43 @@ bool isSpeaking(double averageDB) {
 	return averageDB >= 2.0f;
 }
 
+void printLogo() {
+	std::string logoAscii =
+"\n \n \n\
+          #%%%%%%%%%%%%%%%# .#%%%%%%%* #%%%%%%%%%%%%%%%%#.\n\
+          *%%%%%%%##**+==-...=*%%%%%%%.+%%%%%%%%%%%%%%%%%#\n\
+          *%%%*....:-=++*#%%#* :%%%%%%-:%%%%%%%%%##*%%%%%#\n\
+          +%%%###%%%%%%%%%%%%*  #%%%%%* #%%%%%+.   -%%%%#=              Podcast automation script\n\
+          +%%%%%%%%%%%%%%%%%#- :#%%%%%# +%%%%%*:::+#%%#=..                written by: Sasho Prostoff\n\
+          =%%%%-::-+%%%%%%%+.:*%%%%%%%%::%%%%%%%%%%%#- -**\n\
+          =%%%%.  =%%%%%%*::*%%%#+#%%%%+ #%%%%%%%%*- -#%%*                                Barlog 2022\n\
+          -%%%%..*%%%%%*:.+%%%*--#%%%%%# +%%%%%#+: =#%%%%*\n\
+          -%%%%%%%%%%#-.+#%#+:.+%%%%%%%%.-%%%%%..=#%%%%%%*\n\
+          .#%%%%%%%#=.+#%%%=.=#%%%#*%%%%-.%%%%%-=%%%%%%%%*\n\
+            :=+++*= :#%%%%%%%%%%*: -%%%%+ #%%%%=:%%%%%%%%*\n\
+          =*++===-: -#%%%%%%%#=..  .=+*## *%%%%+ %%%%%%%#=\n\
+          -%%%%%%%%*- -#%%%*::=#%%##*+=-:.:=*#%# #%%%%%*  \n\
+          :%%%%%%%%%%#- -: :*%%%%%%%%%%%%%%#+:.- +%%%%%*  \n\
+          .%%%%%=*%%%%%#: -%%%%%%%%%%%%%%%%%%%#+.=%%%%%*  \n\
+           %%%%%+ #%%%%%%= +%%%%%*=++*#%%%%%%%%%-=%%%%%*                Automates the proccess of\n\
+           #%%%%%-.#%%%%%%+ =%%%%#=:.    .-#%%%%=-%%%%%*                editing a three-camera set up.\n\
+           #%%%%%#.:#%%%%%%*.:#%%%%%%#*=+#%%%%%%=:%%%%%*  \n\
+           %%%%%%%* =%%%%%%%#:.*%%%%%%%%%%%%%%%%=:%%%%%*  \n\
+          :%%%%%%%%= +%%%%%%%#- =%%%%%%%%%%%%%%#-.%%%%%*  \n\
+          =%%%%%%%%%: *%%%%%%%%+ :#%%%%%#####**.  *****+\n";
+	for (char a : logoAscii) {
+		if (a == '%') {
+			std::cout << "\033[1;31m%\033[0m";
+		}
+		else {
+			std::cout << a;
+		}
+	}
+}
+
 int main() {
+	printLogo();
+	//return 0;
 	auto start = std::chrono::steady_clock::now();
 	auto end = std::chrono::steady_clock::now();
 	std::cout << "Elapsed time in milliseconds: "
@@ -54,7 +91,9 @@ int main() {
 	AudioFile<double> audioFile;
 	//AudioFile<double> audioFile2;
 	//audioFile.load("../res/left-right.wav", false);
-	audioFile.load("../res/actual-podcast.wav", true);
+	//audioFile.load("../res/episode-1.wav", true);
+	audioFile.load("C:/Users/Kostov/Videos/BARLOG/Podcasts/Episode 2/wORLD cUP/Audio/Processed/Barlog LR Worllld Cup Mixdown 1.wav", true);
+	//audioFile.load("C:/Users/Kostov/Videos/BARLOG/Podcasts/Episode 1/MIC1.wav", true);
 	int sampleRate = audioFile.getSampleRate();
 	int bitDepth = audioFile.getBitDepth();
 
@@ -102,7 +141,7 @@ int main() {
 
 	int skipFrames = 0;
 
-	for (size_t i = 3; i < averagedDB[0].size(); i++)
+	for (size_t i = 2; i < averagedDB[0].size(); i++)
 	{
 		std::string filename = "test_" + std::to_string(secondsElapsed++) + ".png";
 		std::cout << filename << std::endl;
@@ -120,8 +159,8 @@ int main() {
 		bool isLeftSpeaking = isSpeaking(averagedDB[LEFT][i]);
 		bool isRightSpeaking = isSpeaking(averagedDB[RIGHT][i]);
 
-		bool isLeftSpeakingNext3Sec = isSpeaking((averagedDB[LEFT][i - 1] + averagedDB[LEFT][i - 2] + averagedDB[LEFT][i - 3])/3.0f);
-		bool isRightSpeakingNext3Sec = isSpeaking((averagedDB[RIGHT][i - 1] + averagedDB[RIGHT][i - 2] + averagedDB[RIGHT][i - 3])/3.0f);
+		bool isLeftSpeakingNext3Sec = isSpeaking((averagedDB[LEFT][i - 1] + averagedDB[LEFT][i - 2])/2.0f);
+		bool isRightSpeakingNext3Sec = isSpeaking((averagedDB[RIGHT][i - 1] + averagedDB[RIGHT][i - 2])/2.0f);
 
 
 
@@ -134,11 +173,11 @@ int main() {
 		if (cameraFocus == CENTRAL) {
 			if (isLeftSpeakingNext3Sec) {
 				cameraFocus = LEFT;
-				skipFrames += 4;
+				skipFrames += 3;
 			}
 			else if (isRightSpeakingNext3Sec) {
 				cameraFocus = RIGHT;
-				skipFrames += 4;
+				skipFrames += 3;
 			}
 			else {
 				skipFrames += 1;
@@ -149,7 +188,7 @@ int main() {
 		if (cameraFocus == LEFT) {
 			if (isRightSpeakingNext3Sec && !isLeftSpeakingNext3Sec) {
 				cameraFocus = RIGHT;
-				skipFrames += 4;
+				skipFrames += 1;
 			}
 			else if (isLeftSpeaking)
 				cameraFocus = LEFT;
@@ -163,7 +202,7 @@ int main() {
 		if (cameraFocus == RIGHT) {
 			if (isLeftSpeakingNext3Sec && !isRightSpeakingNext3Sec) {
 				cameraFocus = LEFT;
-				skipFrames += 4;
+				skipFrames += 1;
 			}
 			else if (isRightSpeaking)
 				cameraFocus = RIGHT;
