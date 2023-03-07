@@ -1,5 +1,6 @@
 #include "../third-party/AudioFile.h"
 #include "../third-party/lodepng.h"
+#include "logger.h"
 #include "utility.h"
 #include <string>
 #include <iostream>
@@ -19,21 +20,31 @@ void exportVideoTemplate(std::string audioFileName, int cameraCount = 3) {
 		<< " ms" << std::endl;
 		*/
 	if (cameraCount != 1 && cameraCount != 3) {
-		std::cout << "INVALID NUMBER OF CAMERAS! 1 and 3 cameras are supported." << std::endl;
+		Logger::get().error("INVALID NUMBER OF CAMERAS! 1 and 3 cameras are supported.");
 	}
 	AudioFile<double> audioFile;
-	audioFile.load(audioFileName, true); // For podcasts the load should always be true (note: it's my custom functianality in AudioFile.h)
+	bool successLoad = audioFile.load(audioFileName, true); // For podcasts the load should always be true (note: it's my custom functianality in AudioFile.h)
+	if (successLoad)
+		Logger::get().read("Loaded " + audioFileName + " successfully!");
+	else {
+		Logger::get().error("Failed to load " + audioFileName);
+		return;
+	}
 
 
 	int sampleRate = audioFile.getSampleRate();
 	int bitDepth = audioFile.getBitDepth();
-
 	int numSamples = audioFile.demandSamples.numSamples; // Demand samples is practically the count of all samples, not just the current demand.
 	double lengthInSeconds = audioFile.getLengthInSeconds();
-
 	int numChannels = audioFile.getNumChannels();
 	bool isMono = audioFile.isMono();
 	bool isStereo = audioFile.isStereo();
+	
+	Logger::get().info("Sample rate: " + std::to_string(sampleRate));
+	Logger::get().info("Bit depth: " + std::to_string(bitDepth));
+	Logger::get().info("Number of samples: " + std::to_string(numSamples));
+	
+	
 	int secondsElapsed = 0;
 
 	int channel = 0;
@@ -220,3 +231,16 @@ int main(int argc, char* argv[]) {
 
 	return 0;
 }
+
+
+// TODO:
+/*
+1. Fix your goddamn github key
+2. Add a create folder hierarchy functionality
+3. Refactor the main function
+4. Create a logger, that you can reuse in other projects.
+5. Refactor exportVideoTemplate function
+6. Create the template project.
+
+
+*/
