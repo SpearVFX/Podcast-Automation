@@ -35,6 +35,11 @@ public:
         log("WRITE", message, "\033[35m", newLine); // magenta text
     }
     
+    void processInfo(int numElements, const std::string& optionalInfo = "") {
+        process(numElements, optionalInfo);
+        std::string logStr = std::string("Processing ") + std::to_string(numElements) + " elements. (" + optionalInfo + ")";
+        info(logStr);
+    }
     void processRead(int numElements, const std::string& optionalInfo = "") {
         process(numElements, optionalInfo);
         std::string logStr = std::string("Processing ") + std::to_string(numElements) + " elements. (" + optionalInfo + ")";
@@ -46,14 +51,14 @@ public:
         write(logStr);
     }
 
-    void updateProcess(int numProcessedElements = 1) {
+    void updateProcess(int numProcessedElements = 1, const std::string& optionalInfo = "") {
         std::lock_guard<std::mutex> lock(mutex);
         if (!loadingBarActive) {
             return;
         }
         numProcessed += numProcessedElements;
         int progress = (int)((float)numProcessed / totalElements * 100);
-        std::cout << "\r[" << getTimeStr() << "] " << "Loading: [";
+        std::cout << "\r[" << getTimeStr() << "] " << optionalInfo << " [";
         int pos = barWidth * progress / 100;
         for (int i = 0; i < barWidth; ++i) {
             if (i < pos) {

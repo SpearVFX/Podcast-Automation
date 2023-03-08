@@ -11,6 +11,39 @@
 // Add all ffmpeg commands
 
 
+void fillAveragedDbVector(std::vector<std::vector<double>>& averagedDB, int& numSamples, int& sampleRate, AudioFile<double>& audioFile) {
+	int channel = 0;
+	int hzElapsed = 0;
+	double averageDBLeft = 0;
+	double averageDBRight = 0;
+	averagedDB.resize(2);
+	Logger::get().processRead(numSamples - 2, "Averaging the Decibels in a *seconds array*. Note: This is onDemand operation, so the file is open for reading.");
+	// It is numSamples - 1, just because sometimes it crashes right on the last element, sometimes it doesn't.
+	// I guess I should read more sound file format theory to get why that happens.
+	// Nontheless, 1 sample isn't a big loss.
+	for (int i = 0; i < numSamples - 1; i++)
+	{
+		double currentSampleLeft = audioFile.demandSamples.getBufferAt(LEFT, i);
+		double currentSampleRight = audioFile.demandSamples.getBufferAt(RIGHT, i);
+
+		averageDBLeft += currentSampleLeft * currentSampleLeft;
+		averageDBRight += currentSampleRight * currentSampleRight;
+		if (hzElapsed++ == sampleRate) {
+			// todo: better approach to noise calculation.
+			double calcLeft = (averageDBLeft / sampleRate) * 1000;
+			double calcRight = (averageDBRight / sampleRate) * 1000;
+			averagedDB[LEFT].push_back(calcLeft);
+			averagedDB[RIGHT].push_back(calcRight);
+			std::string result;
+
+			averageDBLeft = 0;
+			averageDBRight = 0;
+			hzElapsed = 0;
+
+			Logger::get().updateProcess(sampleRate);
+		}
+	}
+}
 void exportVideoTemplate(std::string audioFileName, int cameraCount = 3) {
 	/* Keeping this, so I can just copy paste when I need performance check.
 	auto start = std::chrono::steady_clock::now();
@@ -44,40 +77,9 @@ void exportVideoTemplate(std::string audioFileName, int cameraCount = 3) {
 	Logger::get().info("Bit depth: " + std::to_string(bitDepth));
 	Logger::get().info("Number of samples: " + std::to_string(numSamples));
 	
-	
-	int secondsElapsed = 0;
-
-	int channel = 0;
-	int hzElapsed = 0;
-	//int secondsElapsed = 0;
-	double averageDBLeft = 0;
-	double averageDBRight = 0;
 	std::vector<std::vector<double>> averagedDB;
-	averagedDB.resize(cameraCount);
-	for (int i = 0; i < numSamples; i++)
-	{
-		double currentSampleLeft = audioFile.demandSamples.getBufferAt(LEFT, i);
-		double currentSampleRight = audioFile.demandSamples.getBufferAt(RIGHT, i);
-		
-		averageDBLeft += currentSampleLeft * currentSampleLeft;
-		averageDBRight += currentSampleRight * currentSampleRight;
-		if (hzElapsed++ == sampleRate) {
-			// todo: better approach to noise calculation.
-			double calcLeft = (averageDBLeft / sampleRate) * 1000;
-			double calcRight = (averageDBRight / sampleRate) * 1000;
-			averagedDB[LEFT].push_back(calcLeft);
-			averagedDB[RIGHT].push_back(calcRight);
-			std::string result;
-			result += " Seconds elapsed: ";
-			result += std::to_string(secondsElapsed++);
-
-			averageDBLeft = 0;
-			averageDBRight = 0;
-			hzElapsed = 0;
-
-		}
-	}
-	secondsElapsed = 0;
+	fillAveragedDbVector(averagedDB, numSamples, sampleRate, audioFile);
+	int secondsElapsed = 0;
 	// 0 - left, 1 - right, 2 - central
 	int cameraFocus = CENTRAL;
 	int skipFrames = 0; // These are used for multicamera
@@ -86,7 +88,16 @@ void exportVideoTemplate(std::string audioFileName, int cameraCount = 3) {
 	std::wstring exportDirectoryWide = std::wstring(audioFileName.begin(), audioFileName.begin() + audioFileName.find('.'));
 	std::string exportDirectory = std::string(audioFileName.begin(), audioFileName.begin() + audioFileName.find('.'));
 	std::string fileNameRoot = exportDirectory.substr(exportDirectory.find_last_of('\\') + 1);
-	_wmkdir(exportDirectoryWide.c_str());
+	bool createDir = _wmkdir(exportDirectoryWide.c_str());
+	
+	if (createDir) {
+		Logger::get().write("Created directory: " + exportDirectory);
+	}
+	else {
+		Logger::get().error("Failed to create directory: " + exportDirectory);
+		return;
+	}
+
 	if (cameraCount == 1) {
 
 		for (size_t i = 2; i < averagedDB[0].size(); i++) {
@@ -100,6 +111,7 @@ void exportVideoTemplate(std::string audioFileName, int cameraCount = 3) {
 		}
 	}
 	else {
+		Logger::get().processWrite(averagedDB[0].size() - 4, " Exporting an image for every frame..");
 		for (size_t i = 3; i < averagedDB[0].size(); i++)
 		{
 			std::string filename = exportDirectory + "/" + fileNameRoot + "_" + std::to_string(secondsElapsed++) + ".png";
@@ -109,6 +121,7 @@ void exportVideoTemplate(std::string audioFileName, int cameraCount = 3) {
 			case(RIGHT): encodeOneStep(filename.c_str(), greenPixels, 64, 64); break;
 			case(CENTRAL): encodeOneStep(filename.c_str(), bluePixels, 64, 64); break;
 			}
+			Logger::get().updateProcess(1, filename);
 			if (skipFrames > 0) {
 				skipFrames--;
 				continue;
@@ -197,14 +210,14 @@ void exportVideoTemplate(std::string audioFileName, int cameraCount = 3) {
 			//	encodeOneStep(filename.c_str(), bluePixels, 64, 64);
 		}
 }
-	std::cout << "Exported all images for " << audioFileName << "." << std::endl;
+	Logger::get().info("Exported all images for " + audioFileName + ".");
 
-	std::cout << "Creating video using ffmpeg" << audioFileName << "." << std::endl;
+	Logger::get().info("Creating video using ffmpeg" + audioFileName + ".");
 	std::string program = "C:/Program Files/ffmpeg/ffmpeg.exe";
 	std::string commandLineExe;
 	// ffmpeg should be a command
 	commandLineExe +=  " -r 1 -i \"" + exportDirectory + "\\" + fileNameRoot + "_%d.png" + "\" -c:v libx264 -vf fps=25 -pix_fmt yuv420p -y " + exportDirectory + "\\" + fileNameRoot + "_" + "output.mp4";
-	std::cout << "Calling program: " + program + " with arguments: " + commandLineExe << std::endl;
+	Logger::get().info("Calling program: " + program + " with arguments: " + commandLineExe);
 	startupCmdProcess("C:/Program Files/ffmpeg/ffmpeg.exe", (char*)commandLineExe.c_str());
 	cmdProcessFinished = false;
 	// or, just use this quick shortcut to print a summary to the console

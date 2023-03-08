@@ -49,7 +49,7 @@ DWORD __stdcall readDataFromExtProgram(void* argh)
 
         for (char c : chBuf) {
             if (c >= 0) {
-                std::cout << c;
+                //std::cout << c << std::flush;
             }
         }
         if (!bSuccess) break;
