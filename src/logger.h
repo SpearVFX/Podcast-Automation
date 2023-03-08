@@ -118,6 +118,9 @@ private:
         if (newLine) {
             std::cout << std::endl;
         }
+        if (loadingBarActive) {
+            std::cout << std::endl;
+        }
         if (level == LogLevel::ERROR || level == LogLevel::WARNING || level == LogLevel::INFO) {
             std::cout << "["
                 << getTimeStr()
